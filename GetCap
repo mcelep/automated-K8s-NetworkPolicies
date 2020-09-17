@@ -1,0 +1,29 @@
+######## Get capture file from all PODS in Namespace X ########
+
+namespace=default
+timeout=300
+
+cat > tcpdump.yaml l << EOF
+spec:
+  template:
+    spec:
+      containers:
+      - name: tcpdumper
+        image: aessos/tcpdump:1.0.0
+EOF
+
+########  PATCH Tcpdump to all deployment in namespace X  ########
+
+kubectl get deployment -n $namespace |  awk '{print $1}' | grep -v NAME > deployment.list
+declare -a deployment.array=()
+a=0
+while IFS= read -r line; do    echo $line; kubectl patch deployment $line --patch "$(cat tcpdump.yaml)" ; let "a++"; done < deployment.list
+
+
+
+########  PATCH Tcpdump to all deployment in namespace X  ########
+
+kubectl get pods -n $namespace |  awk '{print $1}' | grep -v NAME > pods.list
+declare -a pods.array=()
+b=0
+while IFS= read -r line; do    timeout $timeout kubectl logs -f $line   -c tcpdumper & > tcpdump-pod-$line   ; let "b++" ; done < pods.list
