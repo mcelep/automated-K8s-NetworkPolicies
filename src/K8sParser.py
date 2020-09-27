@@ -34,10 +34,11 @@ class K8sParser(object):
 
     def __init__(self):
         self.conf = {}
-        self.sep = '/'
+        self.sep = os.sep
         self.app_name = "K8sParser"
         self.config_name = "%s%s" % (self.app_name, ".yaml")
-        self.home = os.path.dirname(__file__).replace('/src', '')
+        replace = "%s%s%s%s" % (self.sep, 'src', self.sep, os.path.basename(__file__))
+        self.home = os.path.abspath(__file__).replace(replace, '')
         self.conf_dir = "%s%s%s" % (self.home, self.sep, "conf")
         self.out_dir = "%s%s%s" % (self.home, self.sep, "out")
         create_directory(self.out_dir)
