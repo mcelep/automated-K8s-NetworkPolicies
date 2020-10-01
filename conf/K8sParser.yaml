@@ -1,7 +1,20 @@
 files_folder: files
+
+pod_name_parser:
+  # checkoutservice.default.svc.cluster.local  ==>  checkoutservice
+  # kube-dns.kube-system.svc.cluster.local     ==>  kube-dns
+  - name: "svc_parser"
+    match: ([\w,\-,0-9]+)[.]([\w,\-,0-9]+)[.](svc)[.]([\w,\-,0-9]+)[.]([\w,\-,0-9]+)
+    group: 1
+  # frontend-65b8d7f88b-9tttz  ==>  frontend
+  - name: "pod_label_parser"
+    match: ([\w,0-9]+)[-]([\w,0-9]+)[-]([\w,0-9]+)
+    group: 1
+
 ports_filter:
   - 53
 
 # False/True
 csv_export: True
 xls_export: True
+

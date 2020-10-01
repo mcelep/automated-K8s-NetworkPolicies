@@ -82,6 +82,7 @@ class K8sParser(object):
 
                     # Filter connection that one of the ports are in 'ports_filter'
                     if int(source_port) not in self.config.get('ports_filter') and int(dest_port) not in self.config.get('ports_filter'):
+                        source_ip, dest_ip = self.pod_name_parser(source_ip, dest_ip)
                         row = ("%s,%s,%s" % (source_ip, source_port, dest_ip))
                         if row in graph.keys():
                             graph[row]["weight"] = graph[row]["weight"] + 1
@@ -91,6 +92,17 @@ class K8sParser(object):
             f.close()
             return graph
             ######################################################
+
+    def pod_name_parser(self, source_ip, dest_ip):
+        parser_regex = self.config.get('pod_name_parser')
+        for i in parser_regex:
+            match = re.search(i['match'], source_ip)
+            if match:
+                source_ip = match.group(i['group'])
+            match = re.search(i['match'], dest_ip)
+            if match:
+                dest_ip = match.group(i['group'])
+        return source_ip, dest_ip
 
     def write_files(self, filename, graph):
         graph_list = []
