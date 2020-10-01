@@ -30,3 +30,7 @@ spec:
       - port: 80
       
 ```
+
+
+# Reference 
+- https://networkx.github.io/documentation/stable/auto_examples/drawing/plot_weighted_graph.html

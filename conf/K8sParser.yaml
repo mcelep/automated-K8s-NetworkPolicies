@@ -1,1 +1,7 @@
 files_folder: files
+ports_filter:
+  - 53
+
+# False/True
+csv_export: True
+xls_export: True

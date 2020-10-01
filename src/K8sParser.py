@@ -79,34 +79,42 @@ class K8sParser(object):
                     else:
                         print("wrong match exit")
                         exit(-1)
-                    # print("%s,%s,%s,%s" % (source_ip, source_port, dest_ip, dest_port))
-                    row = ("%s,%s,%s,%s" % (source_ip, source_port, dest_ip, dest_port))
-                    # row = ("%s,%s" % (source_ip, dest_ip))
-                    if row in graph.keys():
-                        graph[row]["wight"] = graph[row]["wight"] + 1
-                    else:
-                        graph[row] = {"source_ip": source_ip, "source_port": source_port, "dest_ip": dest_ip, "dest_port": dest_port, "wight": 1}
+
+                    # Filter connection that one of the ports are in 'ports_filter'
+                    if int(source_port) not in self.config.get('ports_filter') and int(dest_port) not in self.config.get('ports_filter'):
+                        row = ("%s,%s,%s" % (source_ip, source_port, dest_ip))
+                        if row in graph.keys():
+                            graph[row]["weight"] = graph[row]["weight"] + 1
+                        else:
+                            # graph[row] = {"source_ip": source_ip, "source_port": source_port, "dest_ip": dest_ip, "dest_port": dest_port, "weight": 1}
+                            graph[row] = {"source_ip": source_ip, "source_port": source_port, "dest_ip": dest_ip, "weight": 1}
             f.close()
             return graph
             ######################################################
 
-    def write_excel(self, filename, graph):
+    def write_files(self, filename, graph):
         graph_list = []
         NowTime = datetime.datetime.now()
         xls_filename = "%s%s%s%s%s%s" % (self.out_dir, self.sep, filename, "_", NowTime.strftime("%d%m%y%H%M%S"), ".xlsx")
+        csv_filename = "%s%s%s%s%s%s" % (self.out_dir, self.sep, filename, "_", NowTime.strftime("%d%m%y%H%M%S"), ".csv")
         for track in graph:
             graph_list.append(graph.get(track))
 
         df = pd.DataFrame.from_dict(graph_list)
-        # Create a Pandas Excel writer using XlsxWriter as the engine.
-        writer = pd.ExcelWriter(xls_filename, engine='xlsxwriter')
+        if self.config.get('xls_export'):
+            # Create a Pandas Excel writer using XlsxWriter as the engine.
+            writer = pd.ExcelWriter(xls_filename, engine='xlsxwriter')
 
-        # Convert the dataframe to an XlsxWriter Excel object.
-        df.to_excel(writer, sheet_name='graph')
+            # Convert the dataframe to an XlsxWriter Excel object.
+            df.to_excel(writer, sheet_name='graph')
 
-        # Close the Pandas Excel writer and output the Excel file.
-        writer.save()
-        print("File details: %s" % xls_filename)
+            # Close the Pandas Excel writer and output the Excel file.
+            writer.save()
+            print("XlsFile details: %s" % xls_filename)
+
+        if self.config.get('csv_export'):
+            df.to_csv(csv_filename, index=False)
+            print("Csv File details: %s" % csv_filename)
 
     def main(self):
         network_graph = {}
@@ -114,9 +122,9 @@ class K8sParser(object):
         for entry in path_list:
             print("Parsing => %s", entry.name)
             graph = self.parse_file(entry)
-            self.write_excel(entry.name, graph)
+            self.write_files(entry.name, graph)
             network_graph.update(graph)
-        self.write_excel("network_graph", network_graph)
+        self.write_files("network_graph", network_graph)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~ MAIN ~~~~~~~~~~~~~~~~~~~~~~ #
