@@ -1,0 +1,12 @@
+spec:
+  template:
+    spec:
+      containers:
+      - name: tshark
+        image: mcelep/tshark 
+        args:
+        - "-w"
+        - "/tmp/tcpdump.pcap"
+        securityContext:
+          privileged: true
+          runAsUser: 0
