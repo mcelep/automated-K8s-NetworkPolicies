@@ -1,1 +1,2 @@
-graph-tools
+requirements.txtgraph-tools
+kubernetes
