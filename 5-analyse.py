@@ -130,11 +130,12 @@ def create_network_policy():
                 if network_policy is None:
                     network_policy = create_network_policy_skeleton(v)
                 if network_policy.spec.egress is None:
-                    network_policy.spec.egress = client.models.V1NetworkPolicyEgressRule(
-                        ports=create_network_policy_ports(ports))
-                if network_policy.spec.egress._to is None:
-                    network_policy.spec.egress._to = []
-                network_policy.spec.egress._to.append(create_network_policy_peer(egress[1].name))
+                    network_policy.spec.egress = []
+                network_policy.spec.egress.append( client.models.V1NetworkPolicyEgressRule(
+                    ports=create_network_policy_ports(ports)))
+                if network_policy.spec.egress[len(network_policy.spec.egress) -1]._to is None:
+                    network_policy.spec.egress[len(network_policy.spec.egress) -1]._to = []
+                network_policy.spec.egress[len(network_policy.spec.egress) -1]._to.append(create_network_policy_peer(egress[1].name))
 
         if include_ingress_in_policy:
             for ingress in g.edges_to(v):
@@ -143,11 +144,12 @@ def create_network_policy():
                 if network_policy is None:
                     network_policy = create_network_policy_skeleton(v)
                 if network_policy.spec.ingress is None:
-                    network_policy.spec.ingress = client.models.V1NetworkPolicyIngressRule(
-                        ports=create_network_policy_ports(ports))
-                if network_policy.spec.ingress._from is None:
-                    network_policy.spec.ingress._from = []
-                network_policy.spec.ingress._from.append(create_network_policy_peer(ingress[0].name))
+                    network_policy.spec.ingress = []
+                network_policy.spec.ingress.append(client.models.V1NetworkPolicyIngressRule(
+                        ports=create_network_policy_ports(ports)))
+                if network_policy.spec.ingress[len(network_policy.spec.ingress) -1]._from is None:
+                    network_policy.spec.ingress[len(network_policy.spec.ingress) -1]._from = []
+                network_policy.spec.ingress[len(network_policy.spec.ingress) -1]._from.append(create_network_policy_peer(ingress[0].name))
 
         update_policy_types(network_policy)
         result.append(network_policy)
@@ -156,7 +158,7 @@ def create_network_policy():
 
 def create_network_policy_peer(pod_name):
     return client.models.V1NetworkPolicyPeer(
-        pod_selector=client.models.V1LabelSelector(match_labels=look_up_pod_selector(pod_name)))
+        pod_selector=look_up_pod_selector(pod_name))
 
 
 def update_policy_types(np: client.models.V1NetworkPolicy):
@@ -170,7 +172,7 @@ def update_policy_types(np: client.models.V1NetworkPolicy):
 def create_network_policy_ports(ports: Sequence):
     result = []
     for port in ports:
-        result.append(client.models.V1NetworkPolicyPort(protocol='TCP', port=port))
+        result.append(client.models.V1NetworkPolicyPort(protocol='TCP', port=int(port)))
     return result
 
 
