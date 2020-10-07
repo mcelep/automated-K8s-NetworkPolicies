@@ -1,9 +1,9 @@
 #!/bin/bash
 
 source env.sh
-TEST_DURATION_IN_SECONDS=30
+TEST_DURATION_IN_SECONDS=60
 kubectl -n $TARGET_NS delete deployment load-generator --ignore-not-found --wait
-kubectl -n $TARGET_NS delete pod -l app=load-generator  --grace-period 0 --force
+kubectl -n $TARGET_NS delete pod -l run=load-generator  --wait
 sleep 15
 PODS=$(kubectl get pods -n $TARGET_NS |  awk '{print $1}' | grep -v NAME)
 
@@ -19,7 +19,8 @@ do
    kubectl -n $TARGET_NS cp $p:/tmp/tcpdump.pcap ".tmp/${FILE}" -c tcpdumper   
 done
 
-kubectl -n $TARGET_NS delete deployment load-generator
+#kubectl -n $TARGET_NS delete deployment load-generator  --ignore-not-found
+#kubectl -n $TARGET_NS delete pod -l run=load-generator
 
 ./4a-create-capture-metadata.py $TARGET_NS ${PODS}
 

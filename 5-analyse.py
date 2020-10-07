@@ -3,6 +3,9 @@ import sys
 import subprocess
 import logging
 import json
+import os
+import shutil
+
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -23,10 +26,10 @@ VERTEX_ATTRIBUTE_POD = 'pod'
 
 include_ingress_in_policy = True
 include_egress_in_policy = True
-
+create_dns_policy = True
 
 def process_file(file):
-    folder = file[: file.rindex('/')]
+    base_folder = file[: file.rindex('/')]
     with open(file, "r") as a_file:
         capture_metadata = json.loads(a_file.read())
         build_service_map(capture_metadata["services"]["items"])
@@ -34,15 +37,25 @@ def process_file(file):
         build_rs_map(capture_metadata["rs"]["items"])
         build_deployments_map(capture_metadata["deployments"]["items"])
         for pod_metadata in capture_metadata["pod_metadata"]:
-            handle_capture_per_pod(pod_metadata["pod"],  folder + '/' + pod_metadata["file"],
+            handle_capture_per_pod(pod_metadata["pod"],  base_folder + '/' + pod_metadata["file"],
                                    pod_metadata["IP"])
 
     print_graph()
     result = create_network_policy()
+    policy_folder = base_folder + '/network-policies'
+    create_clean_policies_directory(policy_folder)
     for policy in result:
         policy_content = client.ApiClient().sanitize_for_serialization(policy)
-        with open(folder + '/network_policy_{}.json'.format(policy_content["metadata"]["name"]), "w") as policy_file:
+        with open(policy_folder + '/network_policy_{}.json'.format(policy_content["metadata"]["name"]), "w") as policy_file:
             policy_file.write(json.dumps(policy_content, indent=4))
+
+
+def create_clean_policies_directory(dir):
+    try:
+        shutil.rmtree(dir, ignore_errors=True, onerror=None)
+    except:
+        logger.warning('Error removing dir:{}'.format(dir))
+    os.mkdir(dir)
 
 
 def build_service_map(service_items):
@@ -96,15 +109,26 @@ class Pod:
 
 
 def push_edge_information(pod_name, target_ip, target_port):
-    print('Source Pod:{}, Destination IP:{}, Destination Port:{}'.format(pod_name, target_ip, target_port))
+    logger.info('Source Pod:{}, Destination IP:{}, Destination Port:{}'.format(pod_name, target_ip, target_port))
     if target_ip.startswith('169.254'):
-        logger.debug('Skipping ip: {}'.format(target_ip))
+        logger.info('Skipping ip: {}'.format(target_ip))
         return
+
+    target_pod_name = None
+    if map_ip_2_svc.keys().__contains__(target_ip):
+        target_pod_name = find_pods_that_resolves_to_svc(map_ip_2_svc[target_ip])
+    else:
+        logger.info('No service found for IP:{}'.format(target_ip))
+        target_pod_name = find_pod_with_ip(target_ip)
+
+    if target_pod_name is None or target_pod_name == '':
+        logger.warning('No target svc or pod found for IP: {}'.format(target_ip))
+        return
+
     source_pod = Pod(pod_name)
     g.add_vertex(source_pod)
-    if not map_ip_2_svc.keys().__contains__(target_ip):
-        logger.error('No service for IP:{}'.format(target_ip))
-    target_pod = find_pods_that_resolves_to_svc(map_ip_2_svc[target_ip])
+
+    target_pod = Pod(target_pod_name)
     g.add_vertex(target_pod)
     g.add_edge(source_pod, target_pod)
     # Add port to edge properties
@@ -112,11 +136,18 @@ def push_edge_information(pod_name, target_ip, target_port):
     try:
         existing = g.get_edge_attribute_by_id(source_pod, target_pod, EDGE_ATTRIBUTE_PORT_ID, EDGE_ATTRIBUTE_PORT_NAME)
     except:
-        logger.warning("Edge attribute not found, source:{}, target: {}", source_pod, target_pod)
+        logger.warning("Edge attribute not found, source:{}, target: {}", source_pod, target_pod_name)
     if not existing:
         existing = []
     existing.append(target_port)
     g.set_edge_attribute_by_id(source_pod, target_pod, EDGE_ATTRIBUTE_PORT_ID, EDGE_ATTRIBUTE_PORT_NAME, existing)
+
+
+def find_pod_with_ip(ip):
+    for pod in map_name_2_pod.values():
+        if pod["status"]["podIP"] == ip:
+            return pod["metadata"]["name"]
+    return ''
 
 
 def create_network_policy():
@@ -153,7 +184,21 @@ def create_network_policy():
 
         update_policy_types(network_policy)
         result.append(network_policy)
+
+    if create_dns_policy:
+        result.append(create_dns_network_policy())
+
     return result
+
+
+def create_dns_network_policy():
+    np = client.models.V1NetworkPolicy(api_version='networking.k8s.io/v1', kind='NetworkPolicy',metadata=client.models.V1ObjectMeta(name='dns'))
+    np.spec = client.models.V1NetworkPolicySpec(pod_selector={})
+    np.spec.egress = []
+    np.spec.egress.append(client.models.V1NetworkPolicyEgressRule(ports=[client.models.V1NetworkPolicyPort(protocol='TCP', port=53),
+                                                                         client.models.V1NetworkPolicyPort(protocol='UDP', port=53)]))
+    update_policy_types(np)
+    return np
 
 
 def create_network_policy_peer(pod_name):
