@@ -28,6 +28,7 @@ include_ingress_in_policy = True
 include_egress_in_policy = True
 create_dns_policy = True
 
+
 def process_file(file):
     base_folder = file[: file.rindex('/')]
     with open(file, "r") as a_file:
@@ -289,7 +290,7 @@ def find_pod_from_name(pod_name):
 def find_pod_with_labels(labels: dict):
     for p in map_name_2_pod.values():
         if labels.items() <= dict(p["metadata"]["labels"]).items():
-            return Pod(p["metadata"]["name"])
+            return p["metadata"]["name"]
     raise Exception("Could not find pod with labels:{}".format(labels))
 
 
