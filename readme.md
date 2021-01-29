@@ -2,35 +2,15 @@
 
  **##### the begining 
 ```diff
-lets start here
-```
+This project contains a script that can automate networkpolicies creation based on the application traffic.
+the scripts is doing the following: 
+1) Patch Wirdshark sidecar for namespace
+2) capture traffic
+3) convert/parse tcpdump capture into log
+4) convert log to networkpolocie json format
 
 
  **##### network poclicies
 ```diff
 
-In the following example, incoming traffic to pods with label app=db are allowed only if they come from a pod with app=web, on port 80.
-
-
-kind: NetworkPolicy
-apiVersion: networking.k8s.io/v1
-metadata:
-  name: allow-same-namespace
-  namespace: default
-spec:
-  podSelector:
-    matchLabels:
-      app: db
-  ingress:
-  - from:
-    - podSelector:
-        matchLabels:
-          app: web
-    ports:
-      - port: 80
-      
-```
-
-
-# Reference 
-- https://networkx.github.io/documentation/stable/auto_examples/drawing/plot_weighted_graph.html
+the git is still under construction
