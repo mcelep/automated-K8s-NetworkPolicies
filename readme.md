@@ -26,10 +26,11 @@ kapp deploy -a hipster-shop -y -f https://raw.githubusercontent.com/yasensim/nsx
 #### patch tcpdump on the PODS in TARGET_NS ####
 ./4a-generate-traffic.sh
 
+docker run -t owasp/zap2docker-stable zap-baseline.py -d -t  http://192.168.1.26
 
 TARGET_NS=hipster-shop
 PODS=$(kubectl get pods -n $TARGET_NS |  awk '{print $1}' | grep -v NAME)
-/4a-create-capture-metadata.py 
+./4a-create-capture-metadata.py POD
 
 #### translate capture into networkpolicies ####
 ./5-analyse.py .tmp/capture-2021-02-04_17-15-49.json
