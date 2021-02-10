@@ -36,7 +36,7 @@ docker run -t owasp/zap2docker-stable zap-baseline.py -d -t  http://192.168.1.26
 
 #note: the traffic generator skipped the checkout service , please add cart manualy during the capture (http://192.168.1.26/cart/checkout)
 
-#### analysse ####
+#### analysse (build Networkpolicies) ####
 ./5-analyse.py .tmp/capture-2021-02-10_10-01-00.json 
 
 #### apply policies ####
