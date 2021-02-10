@@ -21,8 +21,14 @@ the git is still under construction
 TARGET_NS=hipster-shop
 kapp apply -f demo-app.yaml
 
+
+
 #### patch tcpdump on the PODS in TARGET_NS ####
-./activate_dump 
+
+
+#### activate dump #### 
+
+./2-activate_dump.sh
 
 #### generate Traffic (you have 160 sec timeout as default) ####
 
