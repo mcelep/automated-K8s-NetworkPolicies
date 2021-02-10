@@ -24,11 +24,29 @@ kapp apply -f demo-app.yaml
 #### patch tcpdump on the PODS in TARGET_NS ####
 ./activate_dump 
 
-#### generate Traffic ####
+#### generate Traffic (you have 160 sec timeout as default) ####
+
 docker run -t owasp/zap2docker-stable zap-baseline.py -d -t  http://192.168.1.26
+
+#note: the traffic generator skipped the checkout service , please add cart manualy during the capture (http://192.168.1.26/cart/checkout)
 
 #### analysse ####
 ./5-analyse.py .tmp/capture-2021-02-10_10-01-00.json 
 
 #### apply policies ####
  kubectl apply -f .tmp/network-policies/ -n hipster-shop
+ 
+ 
+#### lets test it ####
+#### POD with label app=frontend trying to access the checkout service
+   kubectl run test-$RANDOM --labels=app=frontend  --namespace=hipster-shop --rm -i -t --image=alpine -- sh
+If you don't see a command prompt, try pressing enter.
+/ # nc -zv 100.96.1.42 5050
+100.96.1.42 (100.96.1.42:5050) open
+ 
+ #### POD with label app=wrong trying to access the checkout service
+kubectl run test-$RANDOM --labels=app=wrong  --namespace=hipster-shop --rm -i -t --image=alpine -- sh
+If you don't see a command prompt, try pressing enter.
+/ # nc -zv 100.96.1.23 5050
+nc: 100.96.1.23 (100.96.1.23:5050): Host is unreachable
+
