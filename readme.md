@@ -19,7 +19,7 @@ the git is still under construction
 
 #### Deploy App ####
 TARGET_NS=hipster-shop
-kapp apply -f demo-app.yaml
+kapp apply -f demo-app.yaml -n hipster-shop
 
 
 
