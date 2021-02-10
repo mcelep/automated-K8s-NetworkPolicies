@@ -43,7 +43,8 @@ docker run -t owasp/zap2docker-stable zap-baseline.py -d -t  http://192.168.1.26
  kubectl apply -f .tmp/network-policies/ -n hipster-shop
  
  
-#### lets test it ####
+#### lets test it with the wrong label ####
+
 #### POD with label app=frontend trying to access the checkout service
    kubectl run test-$RANDOM --labels=app=frontend  --namespace=hipster-shop --rm -i -t --image=alpine -- sh
 If you don't see a command prompt, try pressing enter.
