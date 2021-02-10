@@ -16,20 +16,19 @@ the scripts is doing the following:
 the git is still under construction
 
 # instruction
+
 #### Deploy App ####
 TARGET_NS=hipster-shop
-kapp apply 
+kapp apply -f demo-app.yaml
 
 #### patch tcpdump on the PODS in TARGET_NS ####
 ./activate_dump 
 
-#### patch tcpdump on the PODS in TARGET_NS ####
-./5-analyse.py .tmp/capture-2021-02-10_10-01-00.json 
-
+#### generate Traffic ####
 docker run -t owasp/zap2docker-stable zap-baseline.py -d -t  http://192.168.1.26
 
-TARGET_NS=hipster-shop
-PODS=$(kubectl get pods -n $TARGET_NS |  awk '{print $1}' | grep -v NAME)
-./4a-create-capture-metadata.py POD
+#### analysse ####
+./5-analyse.py .tmp/capture-2021-02-10_10-01-00.json 
 
+#### apply policies ####
  kubectl apply -f .tmp/network-policies/ -n hipster-shop
