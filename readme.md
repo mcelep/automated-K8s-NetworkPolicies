@@ -24,7 +24,7 @@ kapp apply -f demo-app.yaml
 
 
 #### patch tcpdump on the PODS in TARGET_NS ####
-
+1-inject-sidecar.sh 
 
 #### activate dump #### 
 
