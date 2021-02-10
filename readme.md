@@ -46,12 +46,14 @@ docker run -t owasp/zap2docker-stable zap-baseline.py -d -t  http://192.168.1.26
 #### lets test it with the wrong label ####
 
 #### POD with label app=frontend trying to access the checkout service
-   kubectl run test-$RANDOM --labels=app=frontend  --namespace=hipster-shop --rm -i -t --image=alpine -- sh
+
+kubectl run test-$RANDOM --labels=app=frontend  --namespace=hipster-shop --rm -i -t --image=alpine -- sh
 If you don't see a command prompt, try pressing enter.
 / # nc -zv 100.96.1.42 5050
 100.96.1.42 (100.96.1.42:5050) open
  
- #### POD with label app=wrong trying to access the checkout service
+#### POD with label app=wrong trying to access the checkout service
+
 kubectl run test-$RANDOM --labels=app=wrong  --namespace=hipster-shop --rm -i -t --image=alpine -- sh
 If you don't see a command prompt, try pressing enter.
 / # nc -zv 100.96.1.23 5050
