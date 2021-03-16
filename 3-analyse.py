@@ -312,7 +312,7 @@ def main(argv):
     try:
         inputfile = argv[0]
     except:
-        print('5-analyse.py <inputfile>')
+        print('3-analyse.py <inputfile>')
         sys.exit(2)
     process_file(inputfile)
 
