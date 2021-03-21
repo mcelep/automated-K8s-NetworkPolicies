@@ -1,7 +1,6 @@
 #!/bin/bash
 
 source env.sh
-TEST_DURATION_IN_SECONDS=160
 
 PODS=$(kubectl get pods -n $TARGET_NS |  awk '{print $1}' | grep -v NAME)
 
