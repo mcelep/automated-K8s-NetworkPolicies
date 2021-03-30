@@ -2,7 +2,7 @@ spec:
   template:
     spec:
       containers:
-      - name: tcpdumper
+      - name: tcpdump
         image: docker.io/dockersec/tcpdump
         command:
         - "/bin/bash"

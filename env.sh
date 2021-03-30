@@ -1,5 +1,2 @@
-set -eux
-
-TARGET_NS=hipster-shop
-LOAD_GENERATOR_IMAGE=mcelep/hipster-shop-load-generator
-TEST_DURATION_IN_SECONDS=160
+TARGET_NS=ns1-tmc
+TEST_DURATION_IN_SECONDS=30

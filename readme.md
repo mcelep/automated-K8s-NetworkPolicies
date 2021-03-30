@@ -35,50 +35,54 @@ After collecting all the packet capture and kubernetes data about IPs, Ports, La
 ## Further thoughts
 
 
-
 ## Action!
 
-Let's go through the steps below and see if we can generate network policies for a test application. The test application is called 
+Let's go through the steps below and see if we can generate network policies for a test application. The test application is a micro-service demo application from Google that can be found [here](https://github.com/GoogleCloudPlatform/microservices-demo).
 
-### Deploy App 
-TARGET_NS=hipster-shop
-kapp apply -f https://github.com/GoogleCloudPlatform/microservices-demo/blob/cbd3c9643400de7471807821e212a6f3db38ed14/release/kubernetes-manifests.yaml -n hipster-shop
+### Deploy the test application
 
+Before you run the following commands, check out the value set for *TARGET_NS*. By default it's *ms-demo*, you can update it if need be.
 
+### Prepare environment
+Make sure you have access to a Kubernetes cluster and you will need the following tools:
+- Kubernetes CLI
+- Python (v3)
+- Pip(to manage python dependencies) (v3)
+- Tshark which is a Terminal-based [Wireshark](https://www.wireshark.org/) (see [here](https://www.wireshark.org/docs/man-pages/tshark.html))
 
-### patch tcpdump on the PODS in TARGET_NS 
-1-inject-sidecar.sh 
+To install python dependencies, run the following command from top project folder: ```pip install -r requirements.txt```
 
-### activate dump
+### Deploy a test application
 
-./2-activate_dump.sh
+```env.sh``` file on the top-level project folder contains some variables that are used in multiple scripts. Please override those variables with your preferred values, e.g. **TARGET_NS** is the Kubernetes namespace which will be used for all scripts.
 
-### generate Traffic (you have 160 sec timeout as default) 
+The excerpt below is used to create a Kubernetes and then deploy a test application.
+The test application in this case is a microservice demo application that can be found in this [repo](https://github.com/GoogleCloudPlatform/microservices-demo). You can however use any application that you fancy.
 
-docker run -t owasp/zap2docker-stable zap-baseline.py -d -t  http://192.168.1.26
+```
+source env.sh
+kubectl create ns ${TARGET_NS}
+kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/cbd3c9643400de7471807821e212a6f3db38ed14/release/kubernetes-manifests.yaml -n ${TARGET_NS}
+```
 
-#note: the traffic generator skipped the checkout service , please add cart manualy during the capture (http://192.168.1.26/cart/checkout)
+### Patch deployments in $TARGET_NS 
+Running the following command: ```./1-inject-sidecar.sh ``` patches all the deployments and injects a sidecar container that runs tcpdump with the following command: ```tcpdump -w /tmp/tcpdump.pcap```. In our test application, we only have pods that are controlled by deployments. If you are to use a different application that the demo google app used here, you will need to adopt the sidecar injection mechanism.
 
-### analysse (build Networkpolicies) 
-./5-analyse.py .tmp/capture-2021-02-10_10-01-00.json 
+### Prepare to copy capture and metadata
+
+./2-copy-capture-and-metadata.sh
+
+Notice that this script will capture pod names and then it will print out that it will wait for *TEST_DURATION_IN_SECONDS*. During this duration, you should 'load' the application so that network traffic that covers all the potential communication patterns in a real-world use case is generated.
+
+### Generate traffic
+The following command creates a deployment that generates traffic for our demo application
+```kubectl create deployment traffic-generator --image=mcelep/hipster-shop-load-generator -n $TARGET_NS```
+
+### Analyse data & build NetworkPolicies
+Run the following command:
+
+./3-analyse.py .tmp/capture-2021-02-10_10-01-00.json 
 
 ### apply policies 
- kubectl apply -f .tmp/network-policies/ -n hipster-shop
+  .tmp/network-policies
  
- 
-### lets test it with the wrong label 
-
-### POD with label app=frontend trying to access the checkout service
-
-kubectl run test-$RANDOM --labels=app=frontend  --namespace=hipster-shop --rm -i -t --image=alpine -- sh
-If you don't see a command prompt, try pressing enter.
-/ # nc -zv 100.96.1.42 5050
-100.96.1.42 (100.96.1.42:5050) open
- 
-### POD with label app=wrong trying to access the checkout service
-
-kubectl run test-$RANDOM --labels=app=wrong  --namespace=hipster-shop --rm -i -t --image=alpine -- sh
-If you don't see a command prompt, try pressing enter.
-/ # nc -zv 100.96.1.23 5050
-nc: 100.96.1.23 (100.96.1.23:5050): Host is unreachable
-
