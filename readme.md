@@ -32,25 +32,24 @@ Tcpdump sidecar container runs tcpdump with the following command: ```tcpdump -w
 
 After collecting all the packet capture and kubernetes data about IPs, Ports, Labels now we can build a graph. In this graph, nodes/vertices would represent pods and edges would be the network communication between these pods. In the python script that generates the network policies,  first a graph is build and in the second part edges are traversed and for each edge a Network Policy is generated.
 
-## Further thoughts
-
-
 ## Action!
 
 Let's go through the steps below and see if we can generate network policies for a test application. The test application is a micro-service demo application from Google that can be found [here](https://github.com/GoogleCloudPlatform/microservices-demo).
 
 ### Deploy the test application
 
-Before you run the following commands, check out the value set for *TARGET_NS*. By default it's *ms-demo*, you can update it if need be.
+Before you run the following commands, check out the value set for *TARGET_NS*. By default it's *netpol-demo*, you can update it if need be.
 
 ### Prepare environment
-Make sure you have access to a Kubernetes cluster and you will need the following tools:
+You need access to a Kubernetes cluster and you will need the following tools installed:
 - Kubernetes CLI
 - Python (v3)
 - Pip(to manage python dependencies) (v3)
 - Tshark which is a Terminal-based [Wireshark](https://www.wireshark.org/) (see [here](https://www.wireshark.org/docs/man-pages/tshark.html))
-
+- Cut
 To install python dependencies, run the following command from top project folder: ```pip install -r requirements.txt```
+
+We've tested the scripts in this repo on Mac OS and Linux.
 
 ### Deploy a test application
 
@@ -59,9 +58,11 @@ To install python dependencies, run the following command from top project folde
 The excerpt below is used to create a Kubernetes and then deploy a test application.
 The test application in this case is a microservice demo application that can be found in this [repo](https://github.com/GoogleCloudPlatform/microservices-demo). You can however use any application that you fancy.
 
-```
+```bash
 source env.sh
-kubectl create ns ${TARGET_NS}
+# create a namespace if it does not already exist
+kubectl create ns $TARGET_NS --dry-run -o yaml  | kubectl apply -f -
+# deploy application
 kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/cbd3c9643400de7471807821e212a6f3db38ed14/release/kubernetes-manifests.yaml -n ${TARGET_NS}
 ```
 
@@ -70,21 +71,25 @@ Running the following command: ```./1-inject-sidecar.sh ``` patches all the depl
 
 ### Prepare to copy capture and metadata
 
-./2-copy-capture-and-metadata.sh
+Notice that the script below(*2-copy-capture-and-metadata.sh*) will capture pod names and then it will print out that it will wait for *TEST_DURATION_IN_SECONDS*. During this duration, you should 'load' the application so that network traffic that covers all the potential communication patterns in a real-world use case is generated.
 
-Notice that this script will capture pod names and then it will print out that it will wait for *TEST_DURATION_IN_SECONDS*. During this duration, you should 'load' the application so that network traffic that covers all the potential communication patterns in a real-world use case is generated.
+Run the command below:
+
+```./2-copy-capture-and-metadata.sh```
+
+
+If you run into a issue while running this script, you can re-run it. Bear in mind, though that you will need to make sure that app traffic is generated also during the re-run.
 
 ### Generate traffic
-The following command creates a deployment that generates traffic for our demo application:
-```kubectl create deployment traffic-generator --image=mcelep/hipster-shop-load-generator -n $TARGET_NS```
-
-You need to run this command above(or whatever tool you will use to load your application) while the script *./2-copy-capture-and-metadata.sh* keeps printing out that message: 'Going to wait for X seconds so that application traffic can be generated...'
+In the case of our demo application, there is pod called *load-generator* that will be deployed with the rest of the other app components. This pod keeps calling the ui to generate application flows. You can see the logs from *load-generator* pod by running ```kubectl -n $TARGET_NS logs $(kubectl get pods -l app=loadgenerator -o jsonpath='{.items[0].metadata.name}' -n $TARGET_NS) -c main```. So you don't need to do anything extra if you use the same Google microservice demo application to generate network traffic. However if yo use another application, you will need to run your own load generation tool while the script *./2-copy-capture-and-metadata.sh* keeps printing out that message: 'Going to wait for X seconds so that application traffic can be generated...'
 
 ### Analyse data & build NetworkPolicies
-Run the command below to analyse the data and generate NetworkPolicies. The input to the script is a capture json file that is prefixed with *capture-*. You can find candidate capture file(s) by running ```ls .tmp/capture-*.json```
+Run the command below to analyse the data and generate NetworkPolicies. The input to the script is a capture json file that is prefixed with *capture-*. You can find candidate capture file(s) by running ```ls .tmp/capture-*.json```.
 
 ```bash
 ./3-analyse.py .tmp/capture-XXX.json 
 ```
 
 Generated NetworkPolicies should be in  *.tmp/network-policies* folder. For our demo application, we generated one NetworkPolicy file for each application including both ingress and egress rules. Moreover, a DNS policy that allows egress communication on port 53 is created by default.
+
+There's also a graph(in [DOT](https://graphviz.org/doc/info/lang.html) format) generated as a result of running the *3-analyse.py* script. You can use an online tool such as [this](https://dreampuf.github.io/GraphvizOnline) or [this](https://edotor.net/) to create a visual representation of the graph.
