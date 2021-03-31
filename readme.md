@@ -75,14 +75,16 @@ Running the following command: ```./1-inject-sidecar.sh ``` patches all the depl
 Notice that this script will capture pod names and then it will print out that it will wait for *TEST_DURATION_IN_SECONDS*. During this duration, you should 'load' the application so that network traffic that covers all the potential communication patterns in a real-world use case is generated.
 
 ### Generate traffic
-The following command creates a deployment that generates traffic for our demo application
+The following command creates a deployment that generates traffic for our demo application:
 ```kubectl create deployment traffic-generator --image=mcelep/hipster-shop-load-generator -n $TARGET_NS```
 
+You need to run this command above(or whatever tool you will use to load your application) while the script *./2-copy-capture-and-metadata.sh* keeps printing out that message: 'Going to wait for X seconds so that application traffic can be generated...'
+
 ### Analyse data & build NetworkPolicies
-Run the following command:
+Run the command below to analyse the data and generate NetworkPolicies. The input to the script is a capture json file that is prefixed with *capture-*. You can find candidate capture file(s) by running ```ls .tmp/capture-*.json```
 
-./3-analyse.py .tmp/capture-2021-02-10_10-01-00.json 
+```bash
+./3-analyse.py .tmp/capture-XXX.json 
+```
 
-### apply policies 
-  .tmp/network-policies
- 
+Generated NetworkPolicies should be in  *.tmp/network-policies* folder. For our demo application, we generated one NetworkPolicy file for each application including both ingress and egress rules. Moreover, a DNS policy that allows egress communication on port 53 is created by default.
