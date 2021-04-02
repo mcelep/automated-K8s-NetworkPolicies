@@ -121,7 +121,7 @@ class Node:
 
     def __repr__(self):
         return '<%s: %s>' % (
-            self.type, self.name)
+            self.type.name, self.name)
 
 
 def push_edge_information(source_pod_name, target_ip, target_port):
@@ -205,7 +205,7 @@ def create_network_policy():
                         ports=create_network_policy_ports(ports)))
                 if network_policy.spec.ingress[len(network_policy.spec.ingress) -1]._from is None:
                     network_policy.spec.ingress[len(network_policy.spec.ingress) -1]._from = []
-                network_policy.spec.ingress[len(network_policy.spec.ingress) -1]._from.append(create_network_policy_peer(ingress[0].id))
+                network_policy.spec.ingress[len(network_policy.spec.ingress) -1]._from.append(create_network_policy_peer(ingress[0]))
 
         update_policy_types(network_policy)
         result.append(network_policy)

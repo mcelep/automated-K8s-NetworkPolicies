@@ -1,6 +1,6 @@
-# Kubernetes Network Policy Generator
+# Generating Kubernetes Network Policies By Sniffing Network Traffic
 
-This project contains experimental scripts(bash & python) that creates [Kubernetes Network Policies](https://kubernetes.io/docs/concepts/services-networking/network-policies/) based on network traffic captured from applications running on a Kubernetes cluster.
+This project contains experimental scripts(bash & python) that creates [Kubernetes Network Policies](https://kubernetes.io/docs/concepts/services-networking/network-policies/) based on actual network traffic captured from applications running on a Kubernetes cluster.
 
 ## But why?
 
@@ -46,7 +46,8 @@ You need access to a Kubernetes cluster and you will need the following tools in
 - Python (v3)
 - Pip(to manage python dependencies) (v3)
 - Tshark which is a Terminal-based [Wireshark](https://www.wireshark.org/) (see [here](https://www.wireshark.org/docs/man-pages/tshark.html))
-- Cut
+- [Cut](https://man7.org/linux/man-pages/man1/cut.1.html)
+- [Jq](https://stedolan.github.io/jq/)
 To install python dependencies, run the following command from top project folder: ```pip install -r requirements.txt```
 
 We've tested the scripts in this repo on Mac OS and Linux.
@@ -92,4 +93,24 @@ Run the command below to analyse the data and generate NetworkPolicies. The inpu
 
 Generated NetworkPolicies should be in  *.tmp/network-policies* folder. For our demo application, we generated one NetworkPolicy file for each application including both ingress and egress rules. Moreover, a DNS policy that allows egress communication on port 53 is created by default.
 
-There's also a graph(in [DOT](https://graphviz.org/doc/info/lang.html) format) generated as a result of running the *3-analyse.py* script. You can use an online tool such as [this](https://dreampuf.github.io/GraphvizOnline) or [this](https://edotor.net/) to create a visual representation of the graph.
+There's also a graph(in [DOT](https://graphviz.org/doc/info/lang.html) format) generated as a result of running the *3-analyse.py* script. You can use an online tool such as [this](https://dreampuf.github.io/GraphvizOnline) or [this](https://edotor.net/) to create a visual representation of the graph. Here are some example images created via dot representation.
+
+![Micro-service demo app graph](graph_ms_demo.png)
+
+![Simple demo app graph](graph_simple.png)
+
+### Clean-up
+
+The tcpdump sidecar keeps capturing network traffic as long as it's running. So don't forget to remove those sidecar containers after you're done. Run ```./4-delete-sidecar.sh``` to get rid of the tcpdump sidecar containers.
+
+### Gotchas
+
+Scripts in this repo were created in a proof of concept setting, code quality has room for improvement. There are some limitations:
+
+- Scripts were developed to generate NetworkPolicies for  applications that runs pods running in a single namespace. So if there are calls happening to other namespaces than where the application is running, network policies will not be correctly handled.
+
+- Network policy rules for traffic to/from outside of cluster is IP based. If the applications communicates with a domain that is backed my multiples IPs, there will be NetworkPolicy rules only for the IPs that were resolved during the time the scripts ran. So, you might end up missing some rules.
+
+- Only TCP traffic is analysed. There's a NetworkPolicy for DNS generated but there will be no other UDP based NetworkPolicies created.
+
+Feel free to extend these scripts to cover more use cases.
