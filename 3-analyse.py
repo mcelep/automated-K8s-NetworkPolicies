@@ -6,11 +6,13 @@ import json
 import os
 import shutil
 
+from enum import Enum
 from dataclasses import dataclass
 from typing import Sequence
 
 from graph_tools import Graph
 from kubernetes import client
+from kubernetes.client import V1IPBlock
 
 map_ip_2_svc = {}
 map_name_2_pod = {}
@@ -85,10 +87,10 @@ def handle_capture_per_pod(pod_name, capture_file_path, pod_ip):
         """ tshark -r {} -Y " ip.src == {} && tcp.flags.syn==1 && tcp.flags.ack==0 && not icmp" -Tfields \
           -eip.dst_host  -e tcp.dstport -Eseparator=, | sort --unique """.format(
             capture_file_path, pod_ip), shell=True, timeout=60, stderr=None).decode("utf-8")
-    process_stdout_from_process(pod_name, result)
+    process_stdout_from_tshark(pod_name, result)
 
 
-def process_stdout_from_process(pod_name, result):
+def process_stdout_from_tshark(pod_name, result):
     if not result or len(result) == 0:
         logger.info("Empty response!")
         return
@@ -105,17 +107,33 @@ def process_stdout_from_process(pod_name, result):
 
 
 @dataclass(frozen=True, eq=True, order=True)
-class Pod:
+class NodeType(Enum):
+    POD = 1
+    IP = 2
+    FQDN = 3
+
+
+@dataclass(frozen=True, eq=True, order=True)
+class Node:
+    type: NodeType
     name: str
+    id: str
+
+    def __repr__(self):
+        return '<%s: %s>' % (
+            self.type, self.name)
 
 
-def push_edge_information(pod_name, target_ip, target_port):
-    logger.info('Source Pod:{}, Destination IP:{}, Destination Port:{}'.format(pod_name, target_ip, target_port))
-    if target_ip.startswith('169.254'):
+def push_edge_information(source_pod_name, target_ip, target_port):
+    logger.info('Source Pod:{}, Destination IP:{}, Destination Port:{}'.format(source_pod_name, target_ip, target_port))
+    if target_ip.startswith('169.254'): # Ignore link-local address, https://en.wikipedia.org/wiki/Link-local_address
         logger.info('Skipping ip: {}'.format(target_ip))
         return
 
+    target = None
     target_pod_name = None
+    source = None
+
     if map_ip_2_svc.keys().__contains__(target_ip):
         target_pod_name = find_pods_that_resolves_to_svc(map_ip_2_svc[target_ip])
     else:
@@ -123,25 +141,27 @@ def push_edge_information(pod_name, target_ip, target_port):
         target_pod_name = find_pod_with_ip(target_ip)
 
     if target_pod_name is None or target_pod_name == '':
-        logger.warning('No target svc or pod found for IP: {}'.format(target_ip))
-        return
+        logger.warning('No target svc or pod found for IP: {}, assuming that this is an external IP.'.format(target_ip))
+        target = Node(NodeType.IP, target_ip , target_ip)
+    else:
+        target = Node(NodeType.POD, look_up_owner_name(target_pod_name), target_pod_name)
 
-    source_pod = Pod(pod_name)
-    g.add_vertex(source_pod)
+    source = Node(NodeType.POD, look_up_owner_name(source_pod_name), source_pod_name)
+    g.add_vertex(source)
 
-    target_pod = Pod(target_pod_name)
-    g.add_vertex(target_pod)
-    g.add_edge(source_pod, target_pod)
+    
+    g.add_vertex(target)
+    g.add_edge(source, target)
     # Add port to edge properties
     existing = None
     try:
-        existing = g.get_edge_attribute_by_id(source_pod, target_pod, EDGE_ATTRIBUTE_PORT_ID, EDGE_ATTRIBUTE_PORT_NAME)
+        existing = g.get_edge_attribute_by_id(source, target, EDGE_ATTRIBUTE_PORT_ID, EDGE_ATTRIBUTE_PORT_NAME)
     except:
-        logger.warning("Edge attribute not found, source:{}, target: {}", source_pod, target_pod_name)
+        logger.warning("Edge attribute not found, source:{}, target: {}", source, target)
     if not existing:
         existing = []
     existing.append(target_port)
-    g.set_edge_attribute_by_id(source_pod, target_pod, EDGE_ATTRIBUTE_PORT_ID, EDGE_ATTRIBUTE_PORT_NAME, existing)
+    g.set_edge_attribute_by_id(source, target, EDGE_ATTRIBUTE_PORT_ID, EDGE_ATTRIBUTE_PORT_NAME, existing)
 
 
 def find_pod_with_ip(ip):
@@ -154,6 +174,10 @@ def find_pod_with_ip(ip):
 def create_network_policy():
     result = []
     for v in g.vertices():
+        # Only handle pods, other types should be handled as dependencies with their relation to pods
+        if v.type is not NodeType.POD:
+            continue
+
         network_policy: client.models.V1NetworkPolicy = None
         if include_egress_in_policy:
             for egress in g.edges_from(v):
@@ -167,7 +191,7 @@ def create_network_policy():
                     ports=create_network_policy_ports(ports)))
                 if network_policy.spec.egress[len(network_policy.spec.egress) -1]._to is None:
                     network_policy.spec.egress[len(network_policy.spec.egress) -1]._to = []
-                network_policy.spec.egress[len(network_policy.spec.egress) -1]._to.append(create_network_policy_peer(egress[1].name))
+                network_policy.spec.egress[len(network_policy.spec.egress) -1]._to.append(create_network_policy_peer(egress[1]))
 
         if include_ingress_in_policy:
             for ingress in g.edges_to(v):
@@ -181,7 +205,7 @@ def create_network_policy():
                         ports=create_network_policy_ports(ports)))
                 if network_policy.spec.ingress[len(network_policy.spec.ingress) -1]._from is None:
                     network_policy.spec.ingress[len(network_policy.spec.ingress) -1]._from = []
-                network_policy.spec.ingress[len(network_policy.spec.ingress) -1]._from.append(create_network_policy_peer(ingress[0].name))
+                network_policy.spec.ingress[len(network_policy.spec.ingress) -1]._from.append(create_network_policy_peer(ingress[0].id))
 
         update_policy_types(network_policy)
         result.append(network_policy)
@@ -202,9 +226,14 @@ def create_dns_network_policy():
     return np
 
 
-def create_network_policy_peer(pod_name):
-    return client.models.V1NetworkPolicyPeer(
-        pod_selector=look_up_pod_selector(pod_name))
+def create_network_policy_peer(node: Node):
+    if node.type is NodeType.POD:
+        return client.models.V1NetworkPolicyPeer(
+            pod_selector=look_up_pod_selector(node.id))
+    elif node.type is NodeType.IP:
+        return client.models.V1NetworkPolicyPeer(ip_block = V1IPBlock(cidr = node.id + "//32"))
+    else:
+        raise Exception("Not implemented logic for NodeType:{}", node.type)
 
 
 def update_policy_types(np: client.models.V1NetworkPolicy):
@@ -222,13 +251,14 @@ def create_network_policy_ports(ports: Sequence):
     return result
 
 
-def create_network_policy_skeleton(v):
-    pod_data = find_pod_from_name(v.name)
+def create_network_policy_skeleton(v: Node):
+    assert v.type == NodeType.POD
+    pod_data = find_pod_from_name(v.id)
     if pod_data is None:
         raise Exception("No pod data found for vertex:{}", v)
     # TODO fix the name of NetworkPolicy
     network_policy = client.models.V1NetworkPolicy(api_version='networking.k8s.io/v1', kind='NetworkPolicy',
-                                                   metadata=client.models.V1ObjectMeta(name=look_up_owner_name(v.name)))
+                                                   metadata=client.models.V1ObjectMeta(name=look_up_owner_name(v.id)))
     network_policy.spec = client.models.V1NetworkPolicySpec(
         pod_selector=look_up_pod_selector(pod_data['metadata']['name']))
     return network_policy

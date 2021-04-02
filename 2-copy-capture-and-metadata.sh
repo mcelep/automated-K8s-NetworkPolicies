@@ -2,7 +2,7 @@
 
 source env.sh
 
-set -eux
+set -eu
 
 PODS=$(kubectl get pods -n $TARGET_NS -o name --field-selector status.phase!=Terminating | cut -d/ -f2)
 
@@ -28,4 +28,5 @@ do
    fi
    
 done
+
 ./create-capture-metadata.py $TARGET_NS ${PODS}
